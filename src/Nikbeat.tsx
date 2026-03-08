@@ -8,7 +8,7 @@ import {
   type Sample,
 } from './data';
 import {
-  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX,
+  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX, getCtx,
 } from './audio';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -56,7 +56,6 @@ export default function Nikbeat() {
 
   const [aiInput, setAiInput]   = useState('');
   const [showBeatDrop, setShowBeatDrop] = useState(false);
-
 
   const [toast, setToast] = useState({ msg: '', visible: false });
 
@@ -371,8 +370,6 @@ export default function Nikbeat() {
     initAudio();
     try {
       const ab = await file.arrayBuffer();
-      // getCtx() is called indirectly via initAudio, access ctx via the module
-      const { getCtx } = await import('./audio');
       const audioCtx = getCtx();
       if (!audioCtx) { showToast('Audio not ready'); return; }
       const decoded = await audioCtx.decodeAudioData(ab);
