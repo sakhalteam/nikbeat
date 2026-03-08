@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   DRUM_TRACKS, STEPS, ALL_SAMPLES, DEFAULT_PAD_LAYOUT, PAD_COLORS,
   NOTE_NAMES, SCALE_INTERVALS, KB_WHITES, KB_BLACKS, KB_VOICES, KEY_MAP,
-  PRESETS, VIZ_COLORS, makeEmptyDrumPattern, getNotes,
+  PRESETS, VIZ_COLORS, BEAT_POOL, makeEmptyDrumPattern, getNotes,
   type DrumPattern, type MelodyPattern, type Note, type FxEnabled,
   type FxValues, type FxKey, type KbVoiceId, type ScaleId, type PresetState,
   type Sample,
@@ -55,7 +55,7 @@ export default function Nikbeat() {
   const [presetNameInput, setPresetNameInput] = useState('');
 
   const [aiInput, setAiInput]   = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
+
 
   const [toast, setToast] = useState({ msg: '', visible: false });
 
@@ -320,37 +320,37 @@ export default function Nikbeat() {
     showToast('Pattern cleared');
   }
 
-  // ── AI generation ─────────────────────────────────────────────────────────
-  async function generateBeat() {
-    const input = aiInput.trim();
+  // ── AI generation (keyword matching from beat pool) ─────────────────────
+  function generateBeat() {
+    const input = aiInput.trim().toLowerCase();
     if (!input) { showToast('Describe your vibe first'); return; }
-    setAiLoading(true);
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 100,
-          messages: [{
-            role: 'user',
-            content: `Classify this beat vibe: "${input}" into one of: outrun, darksynth, vaporwave, miami, minimal. Pick BPM 70-140. Respond ONLY valid JSON: {"preset":"outrun","bpm":95}. No markdown.`,
-          }],
-        }),
-      });
-      const data = await resp.json();
-      const text = (data.content?.[0]?.text || '').replace(/```json?|```/g, '').trim();
-      const parsed = JSON.parse(text);
-      if (parsed.preset && PRESETS[parsed.preset]) {
-        loadBuiltinPreset(parsed.preset);
-        if (parsed.bpm) handleBpmChange(parseInt(parsed.bpm));
-        showToast(`AI: ${parsed.preset.toUpperCase()} @ ${parsed.bpm} BPM`);
-      }
-    } catch (_) {
-      showToast('Generation failed — try again');
-    } finally {
-      setAiLoading(false);
+
+    // Score each beat by how many tags match the input words
+    const words = input.split(/\s+/);
+    let best = -1;
+    const scored = BEAT_POOL.map((beat, idx) => {
+      const score = beat.tags.reduce((s, tag) =>
+        s + words.filter(w => tag.includes(w) || w.includes(tag)).length, 0);
+      if (score > best) best = score;
+      return { beat, idx, score };
+    });
+
+    let pick;
+    if (best > 0) {
+      // Pick a random one from the top matches
+      const top = scored.filter(s => s.score === best);
+      pick = top[Math.floor(Math.random() * top.length)].beat;
+    } else {
+      // No match — pick a random beat
+      pick = BEAT_POOL[Math.floor(Math.random() * BEAT_POOL.length)];
     }
+
+    const newPattern = {} as DrumPattern;
+    DRUM_TRACKS.forEach(t => { newPattern[t.id] = [...pick.drums[t.id]]; });
+    setDrumPattern(newPattern);
+    drumPatternRef.current = newPattern;
+    handleBpmChange(pick.bpm);
+    showToast(`✦ ${pick.name} @ ${pick.bpm} BPM`);
   }
 
   // ── Custom sample upload ──────────────────────────────────────────────────
@@ -702,8 +702,8 @@ export default function Nikbeat() {
           placeholder="describe your vibe... (e.g. 'dark synthwave', 'miami nights')"
           autoComplete="off"
         />
-        <button className="btn gen" onClick={generateBeat} disabled={aiLoading}>
-          {aiLoading ? '...GEN...' : 'GENERATE'}
+        <button className="btn gen" onClick={generateBeat}>
+          GENERATE
         </button>
       </div>
 
