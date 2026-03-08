@@ -63,6 +63,11 @@ export default function Nikbeat() {
 
   const [toast, setToast] = useState({ msg: '', visible: false });
 
+  // Undo/redo history
+  type PatternSnap = { drums: DrumPattern; melody: MelodyPattern };
+  const undoStackRef = useRef<PatternSnap[]>([]);
+  const redoStackRef = useRef<PatternSnap[]>([]);
+
   // Custom sample buffers (not React state — no re-render needed on load)
   const customBuffersRef = useRef<Record<number, AudioBuffer>>({});
   const [customSampleLabels, setCustomSampleLabels] = useState<Record<number, string>>({});
@@ -244,7 +249,41 @@ export default function Nikbeat() {
     }
   }
 
+  function pushUndo() {
+    undoStackRef.current.push({
+      drums: cloneDrumPattern(drumPatternRef.current),
+      melody: melodyPatternRef.current.map(n => n ? { ...n } : null),
+    });
+    if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+    redoStackRef.current = [];
+  }
+
+  function undo() {
+    const snap = undoStackRef.current.pop();
+    if (!snap) { showToast('Nothing to undo'); return; }
+    redoStackRef.current.push({
+      drums: cloneDrumPattern(drumPatternRef.current),
+      melody: melodyPatternRef.current.map(n => n ? { ...n } : null),
+    });
+    setDrumPattern(snap.drums);
+    setMelodyPattern(snap.melody);
+    showToast('Undo');
+  }
+
+  function redo() {
+    const snap = redoStackRef.current.pop();
+    if (!snap) { showToast('Nothing to redo'); return; }
+    undoStackRef.current.push({
+      drums: cloneDrumPattern(drumPatternRef.current),
+      melody: melodyPatternRef.current.map(n => n ? { ...n } : null),
+    });
+    setDrumPattern(snap.drums);
+    setMelodyPattern(snap.melody);
+    showToast('Redo');
+  }
+
   function toggleDrumStep(trackId: string, step: number) {
+    pushUndo();
     setDrumPattern(prev => {
       const next = cloneDrumPattern(prev);
       next[trackId as keyof DrumPattern][step] ^= 1;
@@ -258,6 +297,7 @@ export default function Nikbeat() {
   }
 
   function selectNote(step: number, note: Note) {
+    pushUndo();
     setMelodyPattern(prev => {
       const next = [...prev];
       next[step] = note;
@@ -269,6 +309,7 @@ export default function Nikbeat() {
   }
 
   function clearNote(step: number) {
+    pushUndo();
     setMelodyPattern(prev => {
       const next = [...prev];
       next[step] = null;
@@ -321,6 +362,18 @@ export default function Nikbeat() {
       document.removeEventListener('keyup', onKeyUp);
     };
   }, [kbVoice]); // re-bind when voice changes so pressKey uses the latest voice
+
+  // Undo/redo keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   // ── Presets ───────────────────────────────────────────────────────────────
   function captureState(): PresetState {
@@ -394,6 +447,7 @@ export default function Nikbeat() {
 
   // ── Clear pattern ─────────────────────────────────────────────────────────
   function clearPattern() {
+    pushUndo();
     setDrumPattern(makeEmptyDrumPattern());
     setMelodyPattern(Array(STEPS).fill(null));
     showToast('Pattern cleared');
@@ -800,6 +854,8 @@ export default function Nikbeat() {
               {isPlaying ? '⏸ PAUSE' : '▶ PLAY'}
             </button>
             <button className="btn stop" onClick={stopPlay}>■ STOP</button>
+            <button className="btn" onClick={undo} title="Undo (Ctrl+Z)">↩</button>
+            <button className="btn" onClick={redo} title="Redo (Ctrl+Shift+Z)">↪</button>
             <button className="btn" onClick={clearPattern}>✕ CLR</button>
             <button className="btn savebtn" onClick={() => { setPresetNameInput(''); setSaveModalOpen(true); }}>★ SAVE</button>
           </div>
