@@ -95,7 +95,9 @@ export default function Nikbeat() {
     toastTimerRef.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 2800);
   }
 
-  // ── Sequencer ─────────────────────────────────────────────────────────────
+  // ── Sequencer (drift-compensated timeout) ─────────────────────────────────
+  const nextTickTimeRef = useRef(0);
+
   const doTick = useCallback(() => {
     const step = currentStepRef.current;
     setPlayingStep(step);
@@ -107,19 +109,30 @@ export default function Nikbeat() {
     currentStepRef.current = (step + 1) % STEPS;
   }, []);
 
+  function scheduleNext() {
+    if (!isPlayingRef.current) return;
+    const stepMs = (60000 / bpmRef.current) / 4;
+    nextTickTimeRef.current += stepMs;
+    const drift = nextTickTimeRef.current - performance.now();
+    intervalRef.current = setTimeout(() => {
+      doTick();
+      scheduleNext();
+    }, Math.max(0, drift));
+  }
+
   function startPlay() {
     initAudio();
     applyFX(fxEnabledRef.current, fxValuesRef.current, bpmRef.current);
     if (isPlayingRef.current) return;
     isPlayingRef.current = true;
     setIsPlaying(true);
-    const ms = (60000 / bpmRef.current) / 4;
+    nextTickTimeRef.current = performance.now();
     doTick();
-    intervalRef.current = setInterval(doTick, ms);
+    scheduleNext();
   }
 
   function pausePlay() {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (intervalRef.current) clearTimeout(intervalRef.current);
     intervalRef.current = null;
     isPlayingRef.current = false;
     setIsPlaying(false);
@@ -134,18 +147,11 @@ export default function Nikbeat() {
   function handleBpmChange(newBpm: number) {
     setBpm(newBpm);
     bpmRef.current = newBpm;
-    if (isPlayingRef.current) {
-      pausePlay();
-      // small delay so state clears before restarting
-      setTimeout(() => {
-        isPlayingRef.current = false;
-        startPlay();
-      }, 10);
-    }
+    // No restart needed — scheduleNext reads bpmRef.current each tick
   }
 
   // Cleanup on unmount
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+  useEffect(() => () => { if (intervalRef.current) clearTimeout(intervalRef.current); }, []);
 
   // ── FX ────────────────────────────────────────────────────────────────────
   function toggleFx(fx: FxKey) {
