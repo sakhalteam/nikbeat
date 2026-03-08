@@ -182,6 +182,10 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px;
 .t-perc    .step.active { background: var(--pg); border-color: var(--pg); box-shadow: 0 0 5px var(--pg); }
 .t-bass    .step.active { background: #ff8844; border-color: #ff8844; box-shadow: 0 0 5px #ff8844; }
 .step.playing { box-shadow: 0 0 0 2px rgba(255,255,255,.4) !important; transform: scale(1.1); }
+.tname { cursor: pointer; user-select: none; transition: opacity .15s; }
+.tname.muted { opacity: .3; text-decoration: line-through; }
+.tname.solo { text-shadow: 0 0 6px currentColor; }
+.track.dimmed .step.active { opacity: .3; }
 .bm-row { display: grid; grid-template-columns: 68px repeat(16,1fr); gap: 3px; margin-bottom: 6px; }
 .bm { height: 3px; border-radius: 1px; }
 .bm-b { background: rgba(0,245,255,.3); }

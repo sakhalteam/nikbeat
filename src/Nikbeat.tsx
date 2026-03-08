@@ -34,6 +34,8 @@ export default function Nikbeat() {
   const [swing, setSwing] = useState(0); // 0-100, 0 = straight, 100 = full triplet
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingStep, setPlayingStep] = useState<number | null>(null);
+  const [mutedTracks, setMutedTracks] = useState<Set<string>>(new Set());
+  const [soloTrack, setSoloTrack] = useState<string | null>(null);
 
   const [fxEnabled, setFxEnabled] = useState<FxEnabled>({ reverb: false, delay: false, filter: false, distort: false });
   const [fxValues, setFxValues]   = useState<FxValues>({ reverb: 40, delay: 30, filter: 60, distort: 20 });
@@ -82,6 +84,8 @@ export default function Nikbeat() {
   const swingRef        = useRef(swing);
   const fxEnabledRef    = useRef(fxEnabled);
   const fxValuesRef     = useRef(fxValues);
+  const mutedTracksRef  = useRef(mutedTracks);
+  const soloTrackRef    = useRef(soloTrack);
   const isPlayingRef    = useRef(false);
   const currentStepRef  = useRef(0);
   const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -92,6 +96,8 @@ export default function Nikbeat() {
   useEffect(() => { melodyPatternRef.current = melodyPattern; }, [melodyPattern]);
   useEffect(() => { bpmRef.current = bpm; },                  [bpm]);
   useEffect(() => { swingRef.current = swing; },              [swing]);
+  useEffect(() => { mutedTracksRef.current = mutedTracks; },  [mutedTracks]);
+  useEffect(() => { soloTrackRef.current = soloTrack; },      [soloTrack]);
   useEffect(() => { fxEnabledRef.current = fxEnabled; },      [fxEnabled]);
   useEffect(() => { fxValuesRef.current = fxValues; },        [fxValues]);
 
@@ -108,8 +114,13 @@ export default function Nikbeat() {
   const doTick = useCallback(() => {
     const step = currentStepRef.current;
     setPlayingStep(step);
+    const solo = soloTrackRef.current;
+    const muted = mutedTracksRef.current;
     DRUM_TRACKS.forEach(track => {
-      if (drumPatternRef.current[track.id][step]) playDrum(track.id);
+      if (!drumPatternRef.current[track.id][step]) return;
+      if (solo && solo !== track.id) return;
+      if (!solo && muted.has(track.id)) return;
+      playDrum(track.id);
     });
     const note = melodyPatternRef.current[step];
     if (note) playNote(note.freq, bpmRef.current);
@@ -217,6 +228,22 @@ export default function Nikbeat() {
   }
 
   // ── Drum pattern ──────────────────────────────────────────────────────────
+  function handleTrackLabel(trackId: string, e: React.MouseEvent) {
+    if (e.shiftKey) {
+      // Solo: toggle solo on this track
+      setSoloTrack(prev => prev === trackId ? null : trackId);
+    } else {
+      // Mute: toggle mute on this track
+      setMutedTracks(prev => {
+        const next = new Set(prev);
+        if (next.has(trackId)) next.delete(trackId); else next.add(trackId);
+        return next;
+      });
+      // Clear solo if muting
+      if (soloTrack === trackId) setSoloTrack(null);
+    }
+  }
+
   function toggleDrumStep(trackId: string, step: number) {
     setDrumPattern(prev => {
       const next = cloneDrumPattern(prev);
@@ -468,9 +495,17 @@ export default function Nikbeat() {
           ))}
         </div>
         {/* Tracks */}
-        {DRUM_TRACKS.map(track => (
-          <div key={track.id} className={`track t-${track.id}`}>
-            <div className="tname">{track.label}</div>
+        {DRUM_TRACKS.map(track => {
+          const isMuted = mutedTracks.has(track.id);
+          const isSolo = soloTrack === track.id;
+          const dimmed = soloTrack && !isSolo;
+          return (
+          <div key={track.id} className={`track t-${track.id}${dimmed ? ' dimmed' : ''}`}>
+            <div
+              className={`tname${isMuted ? ' muted' : ''}${isSolo ? ' solo' : ''}`}
+              onClick={e => handleTrackLabel(track.id, e)}
+              title="Click: mute · Shift+click: solo"
+            >{track.label}{isMuted ? ' ✕' : ''}{isSolo ? ' S' : ''}</div>
             {Array.from({ length: STEPS }, (_, i) => (
               <div
                 key={i}
@@ -479,7 +514,8 @@ export default function Nikbeat() {
               />
             ))}
           </div>
-        ))}
+          );
+        })}
       </>
     );
   }
