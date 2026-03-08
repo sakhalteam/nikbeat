@@ -13,6 +13,10 @@ const sustainedNotes: Record<string, () => void> = {};
 
 export function getCtx(): AudioContext | null { return ctx; }
 
+export function setMasterVolume(vol: number): void {
+  if (masterGain) masterGain.gain.value = vol;
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 export function initAudio(): void {

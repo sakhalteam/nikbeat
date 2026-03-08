@@ -92,6 +92,7 @@ body {
 input[type=range] { -webkit-appearance: none; height: 3px; background: var(--border); border-radius: 2px; outline: none; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; background: var(--pc); border-radius: 50%; cursor: pointer; box-shadow: 0 0 6px var(--pc); }
 #tempoSlider { width: 80px; }
+.vol-val { font-size: 11px; color: var(--pg); min-width: 24px; text-align: center; }
 .transport { display: flex; gap: 5px; }
 
 /* ─── BUTTONS ───────────────────────────────────────────────────────────────── */

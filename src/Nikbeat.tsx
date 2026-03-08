@@ -8,7 +8,7 @@ import {
   type Sample,
 } from './data';
 import {
-  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX, getCtx,
+  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX, getCtx, setMasterVolume,
 } from './audio';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -30,6 +30,7 @@ export default function Nikbeat() {
   });
   const [melodyPattern, setMelodyPattern] = useState<MelodyPattern>(Array(STEPS).fill(null));
   const [bpm, setBpm] = useState(90);
+  const [volume, setVolume] = useState(90);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingStep, setPlayingStep] = useState<number | null>(null);
 
@@ -688,6 +689,15 @@ export default function Nikbeat() {
               onChange={e => handleBpmChange(parseInt(e.target.value))}
             />
             <div className="tempo-val">{bpm}</div>
+          </div>
+          <div className="tempo-wrap">
+            <span className="tempo-lbl">VOL</span>
+            <input
+              type="range" min={0} max={100} value={volume}
+              onChange={e => { const v = parseInt(e.target.value); setVolume(v); setMasterVolume(v / 100); }}
+              style={{ width: 60 }}
+            />
+            <div className="vol-val">{volume}</div>
           </div>
           <div className="transport">
             <button className="btn play" onClick={() => isPlaying ? pausePlay() : startPlay()}>
