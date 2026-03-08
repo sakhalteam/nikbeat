@@ -453,6 +453,40 @@ export default function Nikbeat() {
     showToast('Pattern cleared');
   }
 
+  // ── Share / Export ──────────────────────────────────────────────────────
+  function copyPatternJSON() {
+    const data = {
+      v: 1,
+      bpm: bpmRef.current,
+      swing: swingRef.current,
+      drums: drumPatternRef.current,
+      melody: melodyPatternRef.current.map(n => n ? { name: n.name, freq: n.freq } : null),
+    };
+    navigator.clipboard.writeText(JSON.stringify(data)).then(
+      () => showToast('Pattern copied to clipboard'),
+      () => showToast('Copy failed — check permissions'),
+    );
+  }
+
+  function importPatternJSON() {
+    navigator.clipboard.readText().then(text => {
+      try {
+        const data = JSON.parse(text);
+        if (!data.drums || !data.melody) throw new Error('Invalid');
+        pushUndo();
+        const p = makeEmptyDrumPattern();
+        DRUM_TRACKS.forEach(t => { if (data.drums[t.id]) p[t.id] = data.drums[t.id]; });
+        setDrumPattern(p);
+        setMelodyPattern(data.melody.map((n: { name: string; freq: number } | null) => n ? { name: n.name, freq: n.freq } : null));
+        if (data.bpm) handleBpmChange(data.bpm);
+        if (data.swing != null) setSwing(data.swing);
+        showToast('Pattern imported from clipboard');
+      } catch {
+        showToast('No valid pattern on clipboard');
+      }
+    }).catch(() => showToast('Paste failed — check permissions'));
+  }
+
   // ── Beat pool helpers ───────────────────────────────────────────────────
   function loadBeatPreset(beat: typeof BEAT_POOL[number]) {
     const newPattern = {} as DrumPattern;
@@ -858,6 +892,8 @@ export default function Nikbeat() {
             <button className="btn" onClick={redo} title="Redo (Ctrl+Shift+Z)">↪</button>
             <button className="btn" onClick={clearPattern}>✕ CLR</button>
             <button className="btn savebtn" onClick={() => { setPresetNameInput(''); setSaveModalOpen(true); }}>★ SAVE</button>
+            <button className="btn" onClick={copyPatternJSON} title="Copy pattern to clipboard">⧉ COPY</button>
+            <button className="btn" onClick={importPatternJSON} title="Paste pattern from clipboard">⧉ PASTE</button>
           </div>
         </div>
       </div>
