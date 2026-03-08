@@ -31,6 +31,7 @@ export default function Nikbeat() {
   const [melodyPattern, setMelodyPattern] = useState<MelodyPattern>(Array(STEPS).fill(null));
   const [bpm, setBpm] = useState(90);
   const [volume, setVolume] = useState(90);
+  const [swing, setSwing] = useState(0); // 0-100, 0 = straight, 100 = full triplet
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingStep, setPlayingStep] = useState<number | null>(null);
 
@@ -78,6 +79,7 @@ export default function Nikbeat() {
   const drumPatternRef  = useRef(drumPattern);
   const melodyPatternRef = useRef(melodyPattern);
   const bpmRef          = useRef(bpm);
+  const swingRef        = useRef(swing);
   const fxEnabledRef    = useRef(fxEnabled);
   const fxValuesRef     = useRef(fxValues);
   const isPlayingRef    = useRef(false);
@@ -89,6 +91,7 @@ export default function Nikbeat() {
   useEffect(() => { drumPatternRef.current = drumPattern; },  [drumPattern]);
   useEffect(() => { melodyPatternRef.current = melodyPattern; }, [melodyPattern]);
   useEffect(() => { bpmRef.current = bpm; },                  [bpm]);
+  useEffect(() => { swingRef.current = swing; },              [swing]);
   useEffect(() => { fxEnabledRef.current = fxEnabled; },      [fxEnabled]);
   useEffect(() => { fxValuesRef.current = fxValues; },        [fxValues]);
 
@@ -116,7 +119,10 @@ export default function Nikbeat() {
   function scheduleNext() {
     if (!isPlayingRef.current) return;
     const stepMs = (60000 / bpmRef.current) / 4;
-    nextTickTimeRef.current += stepMs;
+    const swingAmt = stepMs * (swingRef.current / 100) * 0.667;
+    // Odd steps get delayed, even steps come earlier to keep total bar length constant
+    const nextIsOdd = currentStepRef.current % 2 === 1;
+    nextTickTimeRef.current += stepMs + (nextIsOdd ? swingAmt : -swingAmt);
     const drift = nextTickTimeRef.current - performance.now();
     intervalRef.current = setTimeout(() => {
       doTick();
@@ -743,6 +749,15 @@ export default function Nikbeat() {
               style={{ width: 60 }}
             />
             <div className="vol-val">{volume}</div>
+          </div>
+          <div className="tempo-wrap">
+            <span className="tempo-lbl">SWING</span>
+            <input
+              type="range" min={0} max={100} value={swing}
+              onChange={e => setSwing(parseInt(e.target.value))}
+              style={{ width: 50 }}
+            />
+            <div className="swing-val">{swing}%</div>
           </div>
           <div className="transport">
             <button className="btn play" onClick={() => isPlaying ? pausePlay() : startPlay()}>
