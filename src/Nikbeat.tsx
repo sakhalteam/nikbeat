@@ -55,6 +55,7 @@ export default function Nikbeat() {
   const [presetNameInput, setPresetNameInput] = useState('');
 
   const [aiInput, setAiInput]   = useState('');
+  const [showBeatDrop, setShowBeatDrop] = useState(false);
 
 
   const [toast, setToast] = useState({ msg: '', visible: false });
@@ -320,37 +321,47 @@ export default function Nikbeat() {
     showToast('Pattern cleared');
   }
 
-  // ── AI generation (keyword matching from beat pool) ─────────────────────
+  // ── Beat pool helpers ───────────────────────────────────────────────────
+  function loadBeatPreset(beat: typeof BEAT_POOL[number]) {
+    const newPattern = {} as DrumPattern;
+    DRUM_TRACKS.forEach(t => { newPattern[t.id] = [...beat.drums[t.id]]; });
+    setDrumPattern(newPattern);
+    drumPatternRef.current = newPattern;
+    handleBpmChange(beat.bpm);
+    showToast(`✦ ${beat.name} @ ${beat.bpm} BPM`);
+  }
+
+  function pickBeatPreset(beat: typeof BEAT_POOL[number]) {
+    loadBeatPreset(beat);
+    setAiInput('');
+    setShowBeatDrop(false);
+  }
+
   function generateBeat() {
     const input = aiInput.trim().toLowerCase();
-    if (!input) { showToast('Describe your vibe first'); return; }
+    if (!input) {
+      // No input — pick random
+      loadBeatPreset(BEAT_POOL[Math.floor(Math.random() * BEAT_POOL.length)]);
+      return;
+    }
 
-    // Score each beat by how many tags match the input words
     const words = input.split(/\s+/);
     let best = -1;
-    const scored = BEAT_POOL.map((beat, idx) => {
+    const scored = BEAT_POOL.map((beat) => {
       const score = beat.tags.reduce((s, tag) =>
         s + words.filter(w => tag.includes(w) || w.includes(tag)).length, 0);
       if (score > best) best = score;
-      return { beat, idx, score };
+      return { beat, score };
     });
 
     let pick;
     if (best > 0) {
-      // Pick a random one from the top matches
       const top = scored.filter(s => s.score === best);
       pick = top[Math.floor(Math.random() * top.length)].beat;
     } else {
-      // No match — pick a random beat
       pick = BEAT_POOL[Math.floor(Math.random() * BEAT_POOL.length)];
     }
-
-    const newPattern = {} as DrumPattern;
-    DRUM_TRACKS.forEach(t => { newPattern[t.id] = [...pick.drums[t.id]]; });
-    setDrumPattern(newPattern);
-    drumPatternRef.current = newPattern;
-    handleBpmChange(pick.bpm);
-    showToast(`✦ ${pick.name} @ ${pick.bpm} BPM`);
+    loadBeatPreset(pick);
   }
 
   // ── Custom sample upload ──────────────────────────────────────────────────
@@ -693,19 +704,44 @@ export default function Nikbeat() {
 
       {/* ── AI Bar ─────────────────────────────────────────────────────────── */}
       <div className="ai-bar">
-        <span className="ai-lbl">✦ AI GEN</span>
-        <input
-          className="ai-input"
-          value={aiInput}
-          onChange={e => setAiInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && generateBeat()}
-          placeholder="describe your vibe... (e.g. 'dark synthwave', 'miami nights')"
-          autoComplete="off"
-        />
-        <button className="btn gen" onClick={generateBeat}>
-          GENERATE
+        <span className="ai-lbl">✦ BEATS</span>
+        <div className="ai-wrap">
+          <input
+            className="ai-input"
+            value={aiInput}
+            onChange={e => setAiInput(e.target.value)}
+            onFocus={() => setShowBeatDrop(true)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { generateBeat(); setShowBeatDrop(false); }
+              if (e.key === 'Escape') setShowBeatDrop(false);
+            }}
+            placeholder="search vibes or pick a beat..."
+            autoComplete="off"
+          />
+          {showBeatDrop && (
+            <div className="beat-drop" onMouseDown={e => e.preventDefault()}>
+              {BEAT_POOL
+                .filter(b => {
+                  const q = aiInput.trim().toLowerCase();
+                  if (!q) return true;
+                  return b.name.toLowerCase().includes(q) ||
+                    b.tags.some(t => t.includes(q) || q.includes(t));
+                })
+                .map((b, i) => (
+                  <button key={i} className="beat-drop-item" onClick={() => pickBeatPreset(b)}>
+                    <span className="beat-drop-name">{b.name}</span>
+                    <span className="beat-drop-bpm">{b.bpm} BPM</span>
+                    <span className="beat-drop-tags">{b.tags.slice(0, 3).join(' · ')}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+        <button className="btn gen" onClick={() => { generateBeat(); setShowBeatDrop(false); }}>
+          {aiInput.trim() ? 'GENERATE' : 'RANDOM'}
         </button>
       </div>
+      {showBeatDrop && <div className="beat-drop-backdrop" onClick={() => setShowBeatDrop(false)} />}
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <div className="main">
