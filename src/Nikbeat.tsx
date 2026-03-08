@@ -444,6 +444,7 @@ export default function Nikbeat() {
             key={i}
             className={`ncell${melodyPattern[i] ? ' has-note' : ''}${playingStep === i ? ' playing' : ''}`}
             onClick={e => { e.stopPropagation(); handleCellClick(i); }}
+            onContextMenu={e => { e.preventDefault(); if (melodyPattern[i]) clearNote(i); }}
           >
             {melodyPattern[i]?.name ?? ''}
             {openPickerStep === i && (
