@@ -17,6 +17,10 @@ export function setMasterVolume(vol: number): void {
   if (masterGain) masterGain.gain.value = vol;
 }
 
+let analyser: AnalyserNode | null = null;
+
+export function getAnalyser(): AnalyserNode | null { return analyser; }
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 export function initAudio(): void {
@@ -25,7 +29,11 @@ export function initAudio(): void {
 
   masterGain = ctx.createGain();
   masterGain.gain.value = 0.9;
-  masterGain.connect(ctx.destination);
+
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 64;
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
 
   // Reverb impulse
   const rvLen = ctx.sampleRate * 2.5;

@@ -306,8 +306,10 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px;
 .pc12 { background: rgba(191,0,255,.06);   border-color: rgba(191,0,255,.3);   color: #dd88ff;    }
 
 /* ─── VISUALIZER ────────────────────────────────────────────────────────────── */
-.viz { height: 3px; background: var(--bg); border-top: 1px solid var(--border); position: relative; overflow: hidden; }
-.vbar { position: absolute; top: 0; bottom: 0; width: 6.25%; opacity: 0; transition: opacity .08s; }
+.viz-canvas {
+  width: 100%; height: 40px; display: block;
+  background: var(--bg); border-top: 1px solid var(--border);
+}
 
 /* ─── PRESETS BAR ───────────────────────────────────────────────────────────── */
 .presets-bar {

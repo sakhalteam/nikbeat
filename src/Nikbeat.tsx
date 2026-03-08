@@ -2,13 +2,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   DRUM_TRACKS, STEPS, ALL_SAMPLES, DEFAULT_PAD_LAYOUT, PAD_COLORS,
   NOTE_NAMES, SCALE_INTERVALS, KB_WHITES, KB_BLACKS, KB_VOICES, KEY_MAP,
-  PRESETS, VIZ_COLORS, BEAT_POOL, makeEmptyDrumPattern, getNotes,
+  PRESETS, BEAT_POOL, makeEmptyDrumPattern, getNotes,
   type DrumPattern, type MelodyPattern, type Note, type FxEnabled,
   type FxValues, type FxKey, type KbVoiceId, type ScaleId, type PresetState,
   type Sample,
 } from './data';
 import {
-  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX, getCtx, setMasterVolume,
+  initAudio, playDrum, playSample, playNote, startKbNote, stopKbNote, applyFX, getCtx, setMasterVolume, getAnalyser,
 } from './audio';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -65,6 +65,10 @@ export default function Nikbeat() {
   const [customSampleLabels, setCustomSampleLabels] = useState<Record<number, string>>({});
   const uploadTargetIdxRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Visualizer
+  const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const vizAnimRef = useRef<number>(0);
 
   // Arrange modal drag state
   const arrangeDragSrc = useRef<{ page: number; slot: number } | null>(null);
@@ -152,6 +156,41 @@ export default function Nikbeat() {
 
   // Cleanup on unmount
   useEffect(() => () => { if (intervalRef.current) clearTimeout(intervalRef.current); }, []);
+
+  // Visualizer animation loop
+  useEffect(() => {
+    const VIZ_COLORS = ['#ff2d78', '#ff8844', '#ffe600', '#00f5ff', '#bf00ff', '#00ff9f'];
+    function drawViz() {
+      const canvas = vizCanvasRef.current;
+      const analyser = getAnalyser();
+      if (!canvas) { vizAnimRef.current = requestAnimationFrame(drawViz); return; }
+      const ctx2d = canvas.getContext('2d');
+      if (!ctx2d) return;
+      const w = canvas.width = canvas.offsetWidth * 2;
+      const h = canvas.height = canvas.offsetHeight * 2;
+      ctx2d.clearRect(0, 0, w, h);
+
+      if (!analyser) { vizAnimRef.current = requestAnimationFrame(drawViz); return; }
+      const bufLen = analyser.frequencyBinCount;
+      const data = new Uint8Array(bufLen);
+      analyser.getByteFrequencyData(data);
+
+      const barCount = Math.min(bufLen, 32);
+      const barW = w / barCount;
+      for (let i = 0; i < barCount; i++) {
+        const val = data[i] / 255;
+        const barH = val * h;
+        const color = VIZ_COLORS[i % VIZ_COLORS.length];
+        ctx2d.fillStyle = color;
+        ctx2d.globalAlpha = 0.3 + val * 0.7;
+        ctx2d.fillRect(i * barW, h - barH, barW - 1, barH);
+      }
+      ctx2d.globalAlpha = 1;
+      vizAnimRef.current = requestAnimationFrame(drawViz);
+    }
+    vizAnimRef.current = requestAnimationFrame(drawViz);
+    return () => cancelAnimationFrame(vizAnimRef.current);
+  }, []);
 
   // ── FX ────────────────────────────────────────────────────────────────────
   function toggleFx(fx: FxKey) {
@@ -838,19 +877,7 @@ export default function Nikbeat() {
       </div>
 
       {/* ── Visualizer ─────────────────────────────────────────────────────── */}
-      <div className="viz">
-        {Array.from({ length: STEPS }, (_, i) => (
-          <div
-            key={i}
-            className="vbar"
-            style={{
-              left: `${(i / STEPS) * 100}%`,
-              background: VIZ_COLORS[i],
-              opacity: playingStep === i ? 1 : 0,
-            }}
-          />
-        ))}
-      </div>
+      <canvas ref={vizCanvasRef} className="viz-canvas" />
 
       {/* ── Presets Bar ────────────────────────────────────────────────────── */}
       <div className="presets-bar">
